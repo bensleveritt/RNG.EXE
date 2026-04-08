@@ -13,6 +13,7 @@ const BOLD_GREEN = `${ESC}[1;32m`;
 const BOLD_WHITE = `${ESC}[1;37m`;
 
 const HEADER = `${CYAN}░▒▓ RNG.EXE ▓▒░${RESET}`;
+const DIVIDER = `  ${GRAY}────────────────${RESET}`;
 
 const LABEL_COLUMN_WIDTH = 9;
 
@@ -114,6 +115,7 @@ export function formatRollResult(userName: string, result: RollResult): string {
     lines.push(modLine);
   }
 
+  lines.push(DIVIDER);
   lines.push(...formatTotalBox(result.total, totalC));
 
   return wrapAnsi(lines);
