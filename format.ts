@@ -13,7 +13,8 @@ const BOLD_GREEN = `${ESC}[1;32m`;
 const BOLD_WHITE = `${ESC}[1;37m`;
 
 const HEADER = `${CYAN}░▒▓ RNG.EXE ▓▒░${RESET}`;
-const DIVIDER = `  ${GRAY}────────────────${RESET}`;
+
+const LABEL_COLUMN_WIDTH = 9;
 
 export type ColorTier =
   | "critMax"
@@ -82,6 +83,18 @@ function wrapAnsi(lines: string[]): string {
   return "```ansi\n" + lines.join("\n") + "\n```";
 }
 
+function formatTotalBox(total: number, tierC: string): string[] {
+  const totalStr = String(total);
+  const inner = ` ${totalStr} `;
+  const bar = "━".repeat(inner.length);
+  const pad = " ".repeat(LABEL_COLUMN_WIDTH);
+  return [
+    `${pad}${tierC}┏${bar}┓${RESET}`,
+    `  ${GRAY}TOTAL  ${RESET}${tierC}┃${inner}┃${RESET}`,
+    `${pad}${tierC}┗${bar}┛${RESET}`,
+  ];
+}
+
 export function formatRollResult(userName: string, result: RollResult): string {
   const tier = rollTier(result);
   const totalC = tierColor(tier);
@@ -101,8 +114,7 @@ export function formatRollResult(userName: string, result: RollResult): string {
     lines.push(modLine);
   }
 
-  lines.push(DIVIDER);
-  lines.push(`  ${GRAY}TOTAL  ${RESET}${totalC}${result.total}${RESET}`);
+  lines.push(...formatTotalBox(result.total, totalC));
 
   return wrapAnsi(lines);
 }
