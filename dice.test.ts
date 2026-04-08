@@ -16,7 +16,33 @@ Deno.test("rollExpression: parses 2d6 and rolls in range", () => {
     assertStrictEquals(group?.sides, 6);
     assertGreaterOrEqual(r.total, 2);
     assertLessOrEqual(r.total, 12);
+    assertStrictEquals(r.minPossible, 2);
+    assertStrictEquals(r.maxPossible, 12);
   }
+});
+
+Deno.test("rollExpression: minPossible/maxPossible for 2d6+1", () => {
+  const r = rollExpression("2d6+1");
+  assertStrictEquals(r.minPossible, 3);
+  assertStrictEquals(r.maxPossible, 13);
+});
+
+Deno.test("rollExpression: minPossible/maxPossible for 1d20", () => {
+  const r = rollExpression("1d20");
+  assertStrictEquals(r.minPossible, 1);
+  assertStrictEquals(r.maxPossible, 20);
+});
+
+Deno.test("rollExpression: minPossible/maxPossible for 2d6+1d4-1", () => {
+  const r = rollExpression("2d6+1d4-1");
+  assertStrictEquals(r.minPossible, 2 + 1 - 1);
+  assertStrictEquals(r.maxPossible, 12 + 4 - 1);
+});
+
+Deno.test("rollExpression: minPossible/maxPossible for negative dice group 2d6-1d4", () => {
+  const r = rollExpression("2d6-1d4");
+  assertStrictEquals(r.minPossible, 2 - 4);
+  assertStrictEquals(r.maxPossible, 12 - 1);
 });
 
 Deno.test("rollExpression: parses 2d6+1 with modifier", () => {

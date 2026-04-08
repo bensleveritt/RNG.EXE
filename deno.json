@@ -2,7 +2,7 @@
   "tasks": {
     "dev": "deno run --allow-net --allow-env --allow-read main.ts",
     "test": "deno test",
-    "check": "deno check main.ts dice.ts format.ts register_command.ts dice.test.ts",
+    "check": "deno check main.ts dice.ts format.ts register_command.ts dice.test.ts format.test.ts",
     "register": "deno run --allow-net --allow-env --allow-read register_command.ts",
     "deploy": "deno deploy --prod --org=leveritt-institute --app=rng-exe",
     "logs": "deno deploy logs --org=leveritt-institute --app=rng-exe"

@@ -11,6 +11,8 @@ export interface RollResult {
   groups: DiceGroup[];
   modifier: number;
   total: number;
+  minPossible: number;
+  maxPossible: number;
 }
 
 const MAX_DICE_COUNT = 100;
@@ -92,5 +94,17 @@ export function rollExpression(rawExpression: string): RollResult {
 
   const total = groups.reduce((acc, g) => acc + g.subtotal, 0) + modifier;
 
-  return { expression, groups, modifier, total };
+  let minPossible = modifier;
+  let maxPossible = modifier;
+  for (const g of groups) {
+    if (g.sign === 1) {
+      minPossible += g.count;
+      maxPossible += g.count * g.sides;
+    } else {
+      minPossible -= g.count * g.sides;
+      maxPossible -= g.count;
+    }
+  }
+
+  return { expression, groups, modifier, total, minPossible, maxPossible };
 }
