@@ -20,5 +20,9 @@
     "rules": {
       "tags": ["recommended"]
     }
+  },
+  "deploy": {
+    "org": "leveritt-institute",
+    "app": "rng-exe"
   }
 }

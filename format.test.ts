@@ -1,5 +1,5 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@^1";
-import { formatError, formatRollResult, totalTier } from "./format.ts";
+import { formatError, formatRollResult, rollTier } from "./format.ts";
 import type { RollResult } from "./dice.ts";
 
 function fakeResult(overrides: Partial<RollResult> = {}): RollResult {
@@ -22,40 +22,118 @@ function fakeResult(overrides: Partial<RollResult> = {}): RollResult {
   };
 }
 
-Deno.test("totalTier: critMax when total equals max", () => {
-  assertStrictEquals(totalTier(13, 3, 13), "critMax");
+function pbtaResult(modifier: number, total: number): RollResult {
+  return fakeResult({
+    expression: `2d6${modifier >= 0 ? "+" : ""}${modifier}`,
+    modifier,
+    total,
+    minPossible: 2 + modifier,
+    maxPossible: 12 + modifier,
+  });
+}
+
+function d20Result(total: number): RollResult {
+  return {
+    expression: "1d20",
+    groups: [{ sign: 1, count: 1, sides: 20, rolls: [total], subtotal: total }],
+    modifier: 0,
+    total,
+    minPossible: 1,
+    maxPossible: 20,
+  };
+}
+
+Deno.test("rollTier PbtA 2d6: boxcars (12) is critMax", () => {
+  assertStrictEquals(rollTier(pbtaResult(0, 12)), "critMax");
 });
 
-Deno.test("totalTier: critMin when total equals min", () => {
-  assertStrictEquals(totalTier(3, 3, 13), "critMin");
+Deno.test("rollTier PbtA 2d6: snake eyes (2) is critMin", () => {
+  assertStrictEquals(rollTier(pbtaResult(0, 2)), "critMin");
 });
 
-Deno.test("totalTier: high in top 25%", () => {
-  assertStrictEquals(totalTier(11, 3, 13), "high");
-  assertStrictEquals(totalTier(12, 3, 13), "high");
+Deno.test("rollTier PbtA 2d6: 10+ is strong hit (high)", () => {
+  assertStrictEquals(rollTier(pbtaResult(0, 10)), "high");
+  assertStrictEquals(rollTier(pbtaResult(0, 11)), "high");
 });
 
-Deno.test("totalTier: mid in middle 50%", () => {
-  assertStrictEquals(totalTier(6, 3, 13), "mid");
-  assertStrictEquals(totalTier(8, 3, 13), "mid");
-  assertStrictEquals(totalTier(10, 3, 13), "mid");
+Deno.test("rollTier PbtA 2d6: 7-9 is weak hit (mid)", () => {
+  assertStrictEquals(rollTier(pbtaResult(0, 7)), "mid");
+  assertStrictEquals(rollTier(pbtaResult(0, 8)), "mid");
+  assertStrictEquals(rollTier(pbtaResult(0, 9)), "mid");
 });
 
-Deno.test("totalTier: low in bottom 25%", () => {
-  assertStrictEquals(totalTier(4, 3, 13), "low");
-  assertStrictEquals(totalTier(5, 3, 13), "low");
+Deno.test("rollTier PbtA 2d6: 6- is miss (low)", () => {
+  assertStrictEquals(rollTier(pbtaResult(0, 6)), "low");
+  assertStrictEquals(rollTier(pbtaResult(0, 5)), "low");
+  assertStrictEquals(rollTier(pbtaResult(0, 4)), "low");
+  assertStrictEquals(rollTier(pbtaResult(0, 3)), "low");
 });
 
-Deno.test("totalTier: flat when min equals max", () => {
-  assertStrictEquals(totalTier(7, 7, 7), "flat");
+Deno.test("rollTier PbtA 2d6+1: 10 is strong hit (high), not mid", () => {
+  assertStrictEquals(rollTier(pbtaResult(1, 10)), "high");
 });
 
-Deno.test("totalTier: 1d20 examples", () => {
-  assertStrictEquals(totalTier(20, 1, 20), "critMax");
-  assertStrictEquals(totalTier(1, 1, 20), "critMin");
-  assertStrictEquals(totalTier(16, 1, 20), "high");
-  assertStrictEquals(totalTier(10, 1, 20), "mid");
-  assertStrictEquals(totalTier(5, 1, 20), "low");
+Deno.test("rollTier PbtA 2d6+1: 13 (max) is critMax", () => {
+  assertStrictEquals(rollTier(pbtaResult(1, 13)), "critMax");
+});
+
+Deno.test("rollTier PbtA 2d6+1: 3 (min) is critMin", () => {
+  assertStrictEquals(rollTier(pbtaResult(1, 3)), "critMin");
+});
+
+Deno.test("rollTier PbtA 2d6+5: min total (7) is mid not critMin", () => {
+  // 2d6+5 cant miss; min is 7 which is a weak hit, so dont show critMin
+  assertStrictEquals(rollTier(pbtaResult(5, 7)), "mid");
+});
+
+Deno.test("rollTier PbtA 2d6+5: max total (17) is critMax", () => {
+  assertStrictEquals(rollTier(pbtaResult(5, 17)), "critMax");
+});
+
+Deno.test("rollTier PbtA 2d6-3: max total (9) is mid not critMax", () => {
+  // 2d6-3 max is 9 which is only a weak hit, so dont show critMax
+  assertStrictEquals(rollTier(pbtaResult(-3, 9)), "mid");
+});
+
+Deno.test("rollTier PbtA 2d6-3: 6 is low (miss)", () => {
+  assertStrictEquals(rollTier(pbtaResult(-3, 6)), "low");
+});
+
+Deno.test("rollTier PbtA 2d6-3: -1 (min) is critMin", () => {
+  assertStrictEquals(rollTier(pbtaResult(-3, -1)), "critMin");
+});
+
+Deno.test("rollTier non-PbtA 1d20: percentile-based, not PbtA bands", () => {
+  assertStrictEquals(rollTier(d20Result(20)), "critMax");
+  assertStrictEquals(rollTier(d20Result(1)), "critMin");
+  assertStrictEquals(rollTier(d20Result(16)), "high"); // 79%
+  assertStrictEquals(rollTier(d20Result(10)), "mid"); // 47%
+  assertStrictEquals(rollTier(d20Result(5)), "low"); // 21%
+});
+
+Deno.test("rollTier non-PbtA 3d6: not treated as PbtA", () => {
+  const r: RollResult = {
+    expression: "3d6",
+    groups: [{ sign: 1, count: 3, sides: 6, rolls: [4, 4, 4], subtotal: 12 }],
+    modifier: 0,
+    total: 12,
+    minPossible: 3,
+    maxPossible: 18,
+  };
+  // 12 in [3,18] = 60%, mid percentile (not PbtA strong hit)
+  assertStrictEquals(rollTier(r), "mid");
+});
+
+Deno.test("rollTier flat: when min equals max", () => {
+  const r: RollResult = {
+    expression: "1d2-1+0",
+    groups: [{ sign: 1, count: 1, sides: 2, rolls: [1], subtotal: 1 }],
+    modifier: 0,
+    total: 1,
+    minPossible: 1,
+    maxPossible: 1,
+  };
+  assertStrictEquals(rollTier(r), "flat");
 });
 
 Deno.test("formatRollResult: wraps in ansi code block", () => {

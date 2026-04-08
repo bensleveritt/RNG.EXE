@@ -23,7 +23,23 @@ export type ColorTier =
   | "critMin"
   | "flat";
 
-export function totalTier(total: number, min: number, max: number): ColorTier {
+function isPbtaRoll(result: RollResult): boolean {
+  if (result.groups.length !== 1) return false;
+  const [g] = result.groups;
+  return g?.sign === 1 && g.count === 2 && g.sides === 6;
+}
+
+export function rollTier(result: RollResult): ColorTier {
+  const { total, minPossible: min, maxPossible: max } = result;
+
+  if (isPbtaRoll(result)) {
+    if (total === max && total >= 10) return "critMax";
+    if (total === min && total <= 6) return "critMin";
+    if (total >= 10) return "high";
+    if (total >= 7) return "mid";
+    return "low";
+  }
+
   if (max === min) return "flat";
   if (total >= max) return "critMax";
   if (total <= min) return "critMin";
@@ -67,7 +83,7 @@ function wrapAnsi(lines: string[]): string {
 }
 
 export function formatRollResult(userName: string, result: RollResult): string {
-  const tier = totalTier(result.total, result.minPossible, result.maxPossible);
+  const tier = rollTier(result);
   const totalC = tierColor(tier);
 
   const diceLines = result.groups.map(
