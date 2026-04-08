@@ -1,13 +1,17 @@
 # RNG.EXE
 
-Dice roller Discord bot for **The Sprawl** (Neograd campaign). Built with Deno, deployed to Deno
-Deploy.
+Dice roller Discord bot for **The Sprawl** (Neograd campaign). Built with Deno, deployed to
+[Deno Deploy](https://console.deno.com).
 
 ```
 /roll 2d6+1
 🎲 Koroviev rolled `2d6+1`
 2d6 [5, 4] + 1 = **10**
 ```
+
+**Live**: https://rng-exe.leveritt-institute.deno.net\
+**Console**: https://console.deno.com/leveritt-institute/rng-exe\
+**Repo**: https://github.com/bensleveritt/RNG.EXE
 
 ## Features
 
@@ -28,7 +32,7 @@ rng-exe/
 ├── format.ts           Discord message formatting
 ├── dice.test.ts        14 Deno.test cases for the parser
 ├── register_command.ts One-time slash command registration
-├── deno.json           Deno project config (deploy, tasks, compiler options)
+├── deno.json           Deno project config (tasks, compiler options)
 ├── deno.lock           Pinned dependencies
 ├── flake.nix           Nix devshell — provides deno
 ├── flake.lock          Pinned Nix inputs
@@ -46,88 +50,91 @@ If you have direnv installed (recommended):
 ```bash
 cd /Users/benjamin/projects/personal/discord/rng-exe
 direnv allow
-# devshell auto-activates on cd; deno is now on PATH
 ```
 
-Without direnv:
-
-```bash
-nix develop
-```
+The flake provides `deno` on PATH. Without direnv: `nix develop`.
 
 ### 2. Create the Discord application
 
 1. Go to https://discord.com/developers/applications → **New Application** → name it `RNG.EXE`.
-2. **General Information** tab:
-   - Copy **Application ID** → `DISCORD_APPLICATION_ID`
-   - Copy **Public Key** → `DISCORD_PUBLIC_KEY`
-3. **Bot** tab:
-   - Click **Reset Token** → copy → `DISCORD_TOKEN` (treat like a password)
+2. **General Information** tab — copy:
+   - **Application ID** → `DISCORD_APPLICATION_ID`
+   - **Public Key** → `DISCORD_PUBLIC_KEY`
+3. **Bot** tab (left sidebar):
+   - Click **Reset Token** → copy → `DISCORD_TOKEN`
+   - ⚠️ The bot token is ~72 chars with two dots (e.g. `MTQ...GOLqXh.abc...`). If you got a 32-char
+     value, you copied the **Client Secret** from the OAuth2 tab by mistake.
    - **Privileged Gateway Intents**: leave OFF (slash commands don't need them)
 4. **OAuth2 → URL Generator**:
    - Scopes: `applications.commands`, `bot`
    - Permissions: `Send Messages`, `Use Slash Commands`, `Embed Links`
    - Open the generated URL → invite to the Neograd server
 
-### 3. Create `.env.local`
+### 3. Get a Deno Deploy access token
+
+1. Go to https://console.deno.com → avatar → **Account Settings** → **Access Tokens**
+2. **New Token** → copy → `DENO_DEPLOY_TOKEN`
+
+### 4. Create `.env.local`
 
 ```bash
 cp .env.example .env.local
-# edit .env.local with the values from step 2
+# edit .env.local with values from steps 2 and 3
 ```
 
 `.env.local` is gitignored and auto-loaded by direnv.
 
-### 4. Deploy to Deno Deploy
+### 5. Create the Deno Deploy application (one-time)
 
 ```bash
-deno run -A jsr:@deno/deployctl deploy
+deno deploy create \
+  --org=leveritt-institute \
+  --app=rng-exe \
+  --source=local \
+  --runtime-mode=dynamic \
+  --entrypoint=main.ts \
+  --region=eu
 ```
 
-First run prompts you to authenticate with Deno Deploy (browser). Subsequent runs are instant.
+This uploads the code and starts the first deployment. It prints the production URL:
+`https://rng-exe.leveritt-institute.deno.net`
 
-The deploy reads `deno.json`'s `deploy.org` (`leveritt-institute`) and `deploy.app` (`rng-exe`) and
-prints a URL like:
+> If you're a different user, replace `leveritt-institute` with your own org slug. You'll need to
+> create the org first at https://console.deno.com.
 
-```
-https://rng-exe.deno.dev
-```
-
-### 5. Set the public key as a Deno Deploy env var
-
-In the Deno Deploy dashboard:
-
-1. https://dash.deno.com/projects/rng-exe → **Settings** → **Environment Variables**
-2. Add: `DISCORD_PUBLIC_KEY` = `<hex public key>`
-3. Save
-
-Or via `deployctl`:
+### 6. Set the public key as a Deno Deploy env var
 
 ```bash
-deno run -A jsr:@deno/deployctl deploy --env DISCORD_PUBLIC_KEY=$DISCORD_PUBLIC_KEY
+deno deploy env add DISCORD_PUBLIC_KEY "$DISCORD_PUBLIC_KEY" \
+  --org=leveritt-institute --app=rng-exe
 ```
 
-### 6. Point Discord at the deployment
+Then redeploy so the new value is picked up:
+
+```bash
+deno task deploy
+```
+
+### 7. Point Discord at the deployment
 
 1. Discord Dev Portal → your app → **General Information**
-2. **Interactions Endpoint URL** → paste `https://rng-exe.deno.dev`
-3. Save Changes
+2. **Interactions Endpoint URL** → paste `https://rng-exe.leveritt-institute.deno.net`
+3. **Save Changes**
 
-Discord sends a `PING`. If signature verification works, it accepts.
+Discord sends a `PING`. The worker verifies the Ed25519 signature against `DISCORD_PUBLIC_KEY` and
+responds with `{"type":1}`. Discord accepts the save.
 
-### 7. Register the `/roll` slash command
+### 8. Register the `/roll` slash command
 
 ```bash
-register
+deno task register
 ```
 
-(That's the devshell shortcut. Or directly:
-`deno run --allow-net --allow-env --allow-read register_command.ts`.)
+This reads `DISCORD_TOKEN`, `DISCORD_APPLICATION_ID`, and (optionally) `DISCORD_GUILD_ID` from
+`.env.local`. With `DISCORD_GUILD_ID` set the command appears instantly. Without it, global
+registration takes up to an hour.
 
-For instant updates while developing, set `DISCORD_GUILD_ID` in `.env.local` — the command registers
-per-guild and appears immediately. Without it, global registration takes up to an hour.
-
-### 8. Test in Discord
+### 9. Test in Discord
 
 ```
 /roll 2d6+1
@@ -141,26 +148,32 @@ per-guild and appears immediately. Without it, global registration takes up to a
 
 ### Devshell commands
 
-| Command    | What it does                                                                                  |
-| ---------- | --------------------------------------------------------------------------------------------- |
-| `dev`      | `deno run main.ts` — local server on `:8000` (won't work without a public tunnel for Discord) |
-| `register` | Re-register the `/roll` slash command                                                         |
-| `deploy`   | `deployctl deploy`                                                                            |
+| Command    | What it does                                                             |
+| ---------- | ------------------------------------------------------------------------ |
+| `dev`      | `deno run main.ts` — local server on `:8000` (no Discord without tunnel) |
+| `register` | Re-register the `/roll` slash command                                    |
+| `deploy`   | `deno deploy --prod --org=leveritt-institute --app=rng-exe`              |
+| `logs`     | Stream logs from the deployed bot                                        |
 
-### Direct deno commands
+### Direct deno tasks
 
 ```bash
 deno task test    # run dice parser tests
 deno task check   # type-check all files
+deno task deploy  # production deploy
+deno task logs    # stream production logs
 deno fmt          # format
 deno lint         # lint
 ```
 
-### Tail logs from the deployed worker
+### Daily deploy workflow
 
 ```bash
-deno run -A jsr:@deno/deployctl logs
+# edit code...
+deno task check && deno task test && deno task deploy
 ```
+
+`deno deploy create` is **one-time**. Subsequent deploys use `deno deploy` (or `deno task deploy`).
 
 ---
 
@@ -170,18 +183,29 @@ deno run -A jsr:@deno/deployctl logs
 
 - `DISCORD_PUBLIC_KEY` env var on Deno Deploy doesn't match the one in Discord Dev Portal → General
   Info.
-- Update it in the Deno Deploy dashboard and redeploy.
+- Update with `deno deploy env update-value DISCORD_PUBLIC_KEY <new-value>` then `deno task deploy`.
 
 **Discord Interactions URL save fails**
 
-- The deployed bot can't verify the PING. Most likely cause: env var not set on Deno Deploy.
-- Set `DISCORD_PUBLIC_KEY` in the Deno Deploy dashboard, then retry the save in Discord.
+- The deployed bot can't verify the PING. Most likely cause: env var not set on Deno Deploy or
+  redeploy needed after setting it.
+- Verify with `deno deploy env list --org=leveritt-institute --app=rng-exe`, then redeploy.
+
+**`401 Unauthorized` when running `deno task register`**
+
+- Wrong token type. The `DISCORD_TOKEN` must come from the **Bot** tab (~72 chars, dotted), not the
+  OAuth2 Client Secret (~32 chars). Reset the bot token in the Bot tab and update `.env.local`.
 
 **`/roll` doesn't show up in Discord autocomplete**
 
-- Run `register` from the devshell.
+- Run `deno task register`.
 - If global (no `DISCORD_GUILD_ID`), wait up to an hour.
 - Check the bot is in the server and has `Use Slash Commands` permission.
+
+**`deployctl` instead of `deno deploy`**
+
+- `deployctl` targets Deno Deploy **Classic** which is being sunset July 20, 2026. Always use the
+  built-in `deno deploy` subcommand instead.
 
 ---
 
@@ -197,4 +221,4 @@ To add a command:
 
 1. Add the definition to `register_command.ts`
 2. Add a dispatch branch in `main.ts`
-3. Re-run `register`
+3. Run `deno task deploy` to push code, then `deno task register` to publish the command

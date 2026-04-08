@@ -6,56 +6,34 @@ repository.
 ## Project Overview
 
 A Discord bot that rolls dice for **The Sprawl** play-by-post campaign. Standard dice notation
-(`2d6+1`, `1d20`, multi-group). Built with Deno, deployed to Deno Deploy.
+(`2d6+1`, `1d20`, multi-group). Built with Deno, deployed to [Deno Deploy](https://console.deno.com)
+(the new platform — not Classic at `dash.deno.com`).
 
-Sibling project: `discord-oracle` (yes/no oracle bot, same stack).
+- **Production**: https://rng-exe.leveritt-institute.deno.net
+- **Console**: https://console.deno.com/leveritt-institute/rng-exe
+- **GitHub**: https://github.com/bensleveritt/RNG.EXE
+
+Sibling project: `discord-oracle` (yes/no oracle bot). Note: discord-oracle was built on Deno Deploy
+Classic and uses `deployctl`. RNG.EXE was built fresh on the new platform and uses the built-in
+`deno deploy` subcommand. **Do not copy `deployctl` patterns into this repo.**
 
 ## Commands
 
-**Run tests**:
-
 ```bash
-deno test
-```
-
-**Type-check**:
-
-```bash
-deno task check
-```
-
-**Format and lint**:
-
-```bash
+deno task test       # run dice parser tests
+deno task check      # type-check all files
+deno task dev        # run main.ts locally on :8000
+deno task register   # publish /roll slash command to Discord
+deno task deploy     # production deploy (deno deploy --prod)
+deno task logs       # stream production logs
 deno fmt
 deno lint
 ```
 
-**Run locally** (won't reach Discord without a public tunnel):
-
-```bash
-deno task dev
-```
-
-**Register the /roll slash command** (run after changes to command definition):
-
-```bash
-deno task register
-```
-
-**Deploy**:
-
-```bash
-deno run -A jsr:@deno/deployctl deploy
-```
-
-The app is configured for Deno Deploy with org `leveritt-institute` and app `rng-exe` (see
-`deno.json`).
-
 ## Architecture
 
 - **`main.ts`** — `Deno.serve` HTTP handler. Inlined Ed25519 signature verification (Web Crypto).
-  Dispatches by `interaction.data.name`.
+  Dispatches by `interaction.data.name`. Reads `DISCORD_PUBLIC_KEY` from `Deno.env`.
 - **`dice.ts`** — Pure parser + roller. Supports `XdY±Z`, multi-group, case-insensitive,
   whitespace-tolerant. Crypto-random via `crypto.getRandomValues` + rejection sampling for unbiased
   rolls. Capped at 100 dice / 1000 sides per group.
@@ -66,18 +44,63 @@ The app is configured for Deno Deploy with org `leveritt-institute` and app `rng
 
 ## Environment Variables
 
-Required at runtime (Deno Deploy dashboard):
+### Set on Deno Deploy (production runtime)
 
 - `DISCORD_PUBLIC_KEY` — Application public key (hex) for webhook signature verification
 
-Required for `register_command.ts` only (set in `.env.local`):
+Set with: `deno deploy env add DISCORD_PUBLIC_KEY <value> --org=leveritt-institute --app=rng-exe`\
+Then redeploy: `deno task deploy`
 
-- `DISCORD_TOKEN` — Bot token
-- `DISCORD_APPLICATION_ID` — Application ID
+### Set in `.env.local` (local CLI tools only, never deployed)
 
-Optional:
+- `DISCORD_TOKEN` — Bot token (~72 chars, dotted format, from **Bot** tab — NOT OAuth2 Client Secret
+  which is ~32 chars)
+- `DISCORD_APPLICATION_ID` — Application ID (from General Information)
+- `DISCORD_GUILD_ID` — Server ID for per-guild command registration (optional but recommended for
+  instant updates)
+- `DENO_DEPLOY_TOKEN` — Personal access token from console.deno.com → Account Settings → Access
+  Tokens. Used by `deno deploy` CLI for auth.
 
-- `DISCORD_GUILD_ID` — Register per-guild for instant updates instead of global
+`.env.local` is gitignored. Bot token must never be pasted in chat.
+
+## Deployment
+
+This project uses **Deno Deploy** (the new platform, GA Feb 2026), not Deno Deploy Classic. The CLI
+is the built-in `deno deploy` subcommand, not `deployctl`.
+
+### Initial deploy (one-time)
+
+The app already exists. To recreate from scratch:
+
+```bash
+deno deploy create \
+  --org=leveritt-institute \
+  --app=rng-exe \
+  --source=local \
+  --runtime-mode=dynamic \
+  --entrypoint=main.ts \
+  --region=eu
+```
+
+### Subsequent deploys
+
+```bash
+deno task deploy
+```
+
+This is the daily workflow. Edits to code → test/check → deploy → smoke test live URL.
+
+### Smoke test
+
+```bash
+curl -i https://rng-exe.leveritt-institute.deno.net/
+# Expect: HTTP 200, body "RNG.EXE :: online"
+
+curl -i -X POST -H 'X-Signature-Ed25519: deadbeef' -H 'X-Signature-Timestamp: 1' \
+  -H 'Content-Type: application/json' -d '{"type":1}' \
+  https://rng-exe.leveritt-institute.deno.net/
+# Expect: HTTP 401 "Invalid signature" (proves env var loaded + verify works)
+```
 
 ## Strictness
 
@@ -94,4 +117,5 @@ When working with `Uint8Array` and Web Crypto, use `Uint8Array<ArrayBuffer>` (no
 1. Define the command in `register_command.ts` and add it to the array passed to PUT
 2. Add a dispatch branch in `main.ts`'s `handleRequest` (after the PING check)
 3. Add a handler function (mirror `handleRoll`)
-4. Run `deno task register` to publish the new command definition
+4. `deno task deploy` to push the new code
+5. `deno task register` to publish the new command definition

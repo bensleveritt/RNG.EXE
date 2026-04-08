@@ -36,8 +36,13 @@
             }
             {
               name = "deploy";
-              help = "Deploy to Deno Deploy";
-              command = "deno run -A jsr:@deno/deployctl deploy";
+              help = "Deploy to Deno Deploy (production)";
+              command = "deno deploy --prod --org=leveritt-institute --app=rng-exe";
+            }
+            {
+              name = "logs";
+              help = "Stream logs from the deployed bot";
+              command = "deno deploy logs --org=leveritt-institute --app=rng-exe";
             }
           ];
 
